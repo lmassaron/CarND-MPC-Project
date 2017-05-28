@@ -129,41 +129,37 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-		 if (latency > 0) {
-			// px and py are corrected by latency
-			// everything, for numerical stability, 
-			// is calculated in the seconds time frame
-            double vs = mph2mps(v);
-            px += vs * cos(psi) * (latency * .001);
-            py += vs * sin(psi) * (latency * .001);
-         }
+		  if (latency > 0) {
+			  // px and py are corrected by latency
+			  // everything, for numerical stability, 
+			  // is calculated in the seconds time frame
+			  double vs = mph2mps(v);
+			  px += vs * cos(psi) * (latency * .001);
+			  py += vs * sin(psi) * (latency * .001);
+		  }
 		  
 		  Eigen::VectorXd coords_x(waypoints_no);
 		  Eigen::VectorXd coords_y(waypoints_no);
- 
+		  
 		  for(int i = 0; i < waypoints_no; i++) {
-			vector<double> vehicle_pos = map2car(ptsx[i] - px,
-                                                 ptsy[i] - py,
-                                                 psi);
-			
-            coords_x[i] = vehicle_pos[0];
-            coords_y[i] = vehicle_pos[1];
-
-            next_x_vals[i] = vehicle_pos[0];
-			next_y_vals[i] = vehicle_pos[1];
+			  vector<double> vehicle_pos = map2car(ptsx[i] - px, ptsy[i] - py, psi);
+			  coords_x[i] = vehicle_pos[0];
+			  coords_y[i] = vehicle_pos[1];
+			  next_x_vals[i] = vehicle_pos[0];
+			  next_y_vals[i] = vehicle_pos[1];
 		  }
 		  
 		  // fit polynomial
 		  int polynomial_order = 3;
-          Eigen::VectorXd coeffs = polyfit(coords_x, coords_y, polynomial_order);
-
+		  Eigen::VectorXd coeffs = polyfit(coords_x, coords_y, polynomial_order);
+		  
 		  Eigen::VectorXd state(6);
 		  state << 0, 0, 0, v, polyeval(coeffs, 0), -atan(coeffs[1]);
 		  
 		  vector<double> solution = mpc.Solve(state, coeffs, mpc_x_vals, mpc_y_vals);
-		  		  
-          double steer_value = solution[0];
-          double throttle_value = solution[1];
+		  
+		  double steer_value = solution[0];
+		  double throttle_value = solution[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
