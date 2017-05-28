@@ -3,6 +3,96 @@ Self-Driving Car Engineer Nanodegree Program
 
 ---
 
+## The Model
+Model Predictive Control (MPC) is a controlling method that can anticipate future events and elaborate control actions accordingly, showing more responsivity and stability than a PID controller.
+
+As reflections, after implementing this model for a car running at 40 mph in a round circuit around a lake, I can summarize:
+
+* MPC can handle latency very well, incorporating it into its predictions, something that a PID can only answer in a reactive fashion, not an anticipatory one.
+* MPC is computationally intensive depending on the steps in the future you need to look forward and the actuation reactivity. Higher speeds require mtheore computations and that can cause problems if the hardware is not suitable.
+* MPC can control both steering and throttle, no need of anything else (Using PID that would require two PIDs)
+* I used the standard cost function taken from the lectures but the cost function can be easily customized weighting some parts of it more of others, thus making a MPC suitable for specific routes or situation.
+
+### State
+The vehicle state is described by the following variables:
+
+    * x: position of the vehicle in the forward direction
+    * y: position of the vehicle in the lateral direction
+    * psi: yaw angle or orientation of the vehicle
+    * v: speed of the vehicle
+
+The state is completed by its evaluation expressed by:
+    * cross track error (cte) which is the distance between the car's position and the lane center
+    * heading error (epsi) which is the radians difference between the tangent of the closest point of the lane center and the car forward direction
+
+### Actuators
+The actuators of the vehicle are:
+
+    * delta: steering angle expressed in radians
+    * alpha: throttle input, determining acceleration
+
+### MPC algorithm
+
+Setup:
+
+    1. Define the length of the trajectory, N, and duration of each timestep, dt.
+    2. Define vehicle dynamics and actuator limitations along with other constraints.
+    3. Define the cost function.
+
+Loop:
+
+    4. We pass the current state as the initial state to the model predictive controller.
+    5. We call the optimization solver. Given the initial state, the solver will return the vector of control inputs that minimizes the cost function. The solver we'll use is called [Ipopt](https://projects.coin-or.org/Ipopt).
+    6. We apply the first control input to the vehicle.
+    7. Back to 4.
+
+When solving for control inputs I've found that a third degree polynomial is enough and it provides realistic trajectories.
+
+In order to represent the vehicle, the simplified kinematic bicycle model is used in this implementation of MPC:
+In such model, next state is calculated as:
+ - x_t1   = x_t + v_t * cos(psi_t) * dt
+ - y_t1   = y_t + v_t * sin(psi_t) * dt
+ - psi_t1 = psi_t * v_t / Lf * delta * dt
+ - v_t1   = v_t + a_t * dt
+
+
+## Timestep lenght (N) and Elapsed Duration (dt)
+
+The prediction horizon is the duration over which future predictions are made. We’ll refer to this as T.
+T is the product of two other variables, Time step (N parameter) and elapsed duration (dt parameter).
+N is the number of timesteps in the horizon. dt is how much time elapses between actuations.
+N and dt are inversely related and general guidelines indicate that T should be as large as possible, while dt should be as small as possible.
+
+In fact, T should be a few seconds, at most since beyond that horizon, the environment will change enough that it won't make sense to predict any further into the future. 
+
+### N
+N is the number of variables optimized by MPC, the more, the more precise the forecast yet the heavier the computations will be.
+
+### dt
+dt points out the frequency of actuations. Larger values of dt result in less frequent actuations, which makes it harder to accurately approximate a continuous reference trajectory.
+
+### An empirical solution
+A good practice is to first determine a reasonable range for T and then tune dt and N appropriately, keeping the effect of each in mind. By various experiments I found out that it is better to look adhead of about 0.75 seconds, which can be splitted in N=15 (still a fair computational effort) and dt = 0.05 (5/100 of second) which allows a good steering reaction.
+
+## Waypoints, Vehicle State, Actuators Preprocessing
+
+The only preprocessing done is transforming the waypoints coordinates in respect of the car's coordinate system (which is based on the car itself, having the car as the origin).
+
+## Dealing with Latency
+In a real car, an actuation command won't execute instantly - there will be a delay as the command propagates through the system. A realistic delay might be on the order of 100 milliseconds. 
+
+A latency of 100 milliseconds has been implemented in the code of `main.cpp`. Such a small delay causes the first, immediate, prediction made by the solver in the MPC to be already superseeded when actually implemented. In fact, the first prediction is expected to be actual after 100 milliseconds, but, due to the latency, is actuated after 200 milliseconds.
+The suggested action on steering and throttle could then prove unsuitable for the present situation because based on a state situation which is not actual. That could increase the CTE and orientation error, calling for furthermore actions that, as the previous ones cannot be timely, causing more and more errors. In the end, that will make the vehicle oscillating around the intended trajectory causing it to get off-road at higher speeds.
+
+As a solution I combined:
+
+* Using the actual speed and car's position, I try to predict its position after the latency in order to feed into the MPC solver a more likely position to be evaluated. This results in an anticipation of the latency effects
+ 
+* Since there are N predictions, we can take a few ones, for instance the first three, average them, and return a solution from MPC steering and throttle actuaction values that are incorporating a future state well beyond the 100 milliseconds latency (three predictions contain information on about 300 millisencods)
+
+Please note that in the current implementation actuator dynamics have not been taken into account (because they have not been measured), but they could be easily dealt with by adding them to the latency.
+
+
 ## Dependencies
 
 * cmake >= 3.5
@@ -25,15 +115,56 @@ Self-Driving Car Engineer Nanodegree Program
   * Mac: `brew install ipopt`
   * Linux
     * You will need a version of Ipopt 3.12.1 or higher. The version available through `apt-get` is 3.11.x. If you can get that version to work great but if not there's a script `install_ipopt.sh` that will install Ipopt. You just need to download the source from the Ipopt [releases page](https://www.coin-or.org/download/source/Ipopt/) or the [Github releases](https://github.com/coin-or/Ipopt/releases) page.
-    * Then call `install_ipopt.sh` with the source directory as the first argument, ex: `bash install_ipopt.sh Ipopt-3.12.1`. 
+    * This [version](https://www.coin-or.org/download/source/Ipopt/Ipopt-3.12.7.zip) works out of the box,
+    * Then call `install_ipopt.sh` with the source directory as the first argument, ex: `bash install_ipopt.sh Ipopt-3.12.1`.
+    * In case errors are reported while loading shared libraries, just run this command before the ipopt.sh: `sudo ldconfig`.
   * Windows: TODO. If you can use the Linux subsystem and follow the Linux instructions.
 * [CppAD](https://www.coin-or.org/CppAD/)
   * Mac: `brew install cppad`
   * Linux `sudo apt-get install cppad` or equivalent.
   * Windows: TODO. If you can use the Linux subsystem and follow the Linux instructions.
 * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page). This is already part of the repo so you shouldn't have to worry about it.
-* Simulator. You can download these from the [releases tab](https://github.com/udacity/CarND-MPC-Project/releases).
+* Simulator. You can download these from the [releases tab](https://github.com/udacity/self-driving-car-sim/releases).
+  * Linux tip for running the simulator as an executable. Run this command in the simulator's directory: `chmod +x term2_sim.x86*`
 * Not a dependency but read the [DATA.md](./DATA.md) for a description of the data sent back from the simulator.
+
+## Websocket Data
+
+The JSON object send back from the simulator command server consists of the following fields:
+
+* `ptsx` (Array<float>) - The global x positions of the waypoints.
+* `ptsy` (Array<float>) - The global y positions of the waypoints. This corresponds to the z coordinate in Unity
+since y is the up-down direction.
+* `psi` (float) - The orientation of the vehicle in **radians** converted from the Unity format to the standard format expected in most mathemetical functions (more details below).
+* `psi_unity` (float) - The orientation of the vehicle in **radians**. This is an orientation commonly used in [navigation](https://en.wikipedia.org/wiki/Polar_coordinate_system#Position_and_navigation).
+* `x` (float) - The global x position of the vehicle.
+* `y` (float) - The global y position of the vehicle.
+* `steering_angle` (float) - The current steering angle in **radians**.
+* `throttle` (float) - The current throttle value [-1, 1].
+* `speed` (float) - The current velocity in **mph**.
+
+
+### `psi` and `psi_unity` representations
+
+`psi`
+
+```
+//            90
+//
+//  180                   0/360
+//
+//            270
+```
+
+
+`psi_unity`
+
+```
+//            0/360
+//
+//  270                   90
+//
+//            180
 
 
 ## Basic Build Instructions
@@ -43,67 +174,10 @@ Self-Driving Car Engineer Nanodegree Program
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
 4. Run it: `./mpc`.
+5. Start the simulator on autonomous mode for mpc
 
-## Tips
+or simply:
 
-1. It's recommended to test the MPC on basic examples to see if your implementation behaves as desired. One possible example
-is the vehicle starting offset of a straight line (reference). If the MPC implementation is correct, after some number of timesteps
-(not too many) it should find and track the reference line.
-2. The `lake_track_waypoints.csv` file has the waypoints of the lake track. You could use this to fit polynomials and points and see of how well your model tracks curve. NOTE: This file might be not completely in sync with the simulator so your solution should NOT depend on it.
-3. For visualization this C++ [matplotlib wrapper](https://github.com/lava/matplotlib-cpp) could be helpful.
+1. ./build.sh
+2. Start the simulator on autonomous mode for mpc
 
-## Editor Settings
-
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
-## Code Style
-
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
-
-## Project Instructions and Rubric
-
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
-
-More information is only accessible by people who are already enrolled in Term 2
-of CarND. If you are enrolled, see [the project page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/b1ff3be0-c904-438e-aad3-2b5379f0e0c3/concepts/1a2255a0-e23c-44cf-8d41-39b8a3c8264a)
-for instructions and the project rubric.
-
-## Hints!
-
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to we ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./

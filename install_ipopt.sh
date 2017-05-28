@@ -43,3 +43,4 @@ cd $srcdir
 make
 make test
 make -j1 install
+ldconfig

@@ -65,6 +65,16 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
+// converts from map coordinate system to car 
+vector<double> map2car(double x, double y, double psi) {
+  return { x * cos(psi) + y * sin(psi), -x * sin(psi) + y * cos(psi) };
+}
+
+// Converts mph into mps (miles per second)
+double mph2mps(double mph_v) {
+  return mph_v * (1609. / 3600.);
+}
+
 int main() {
   uWS::Hub h;
 
@@ -84,32 +94,82 @@ int main() {
         auto j = json::parse(s);
         string event = j[0].get<string>();
         if (event == "telemetry") {
-          // j[1] is the data JSON object
+          		  
+		  // j[1] is the data JSON object
+		  // latency
+		  long long latency = 100; // Expressed in milliseconds
+		  
+		  // waypoints'x position
           vector<double> ptsx = j[1]["ptsx"];
+		  
+		  // waypoints'y position
           vector<double> ptsy = j[1]["ptsy"];
+		  
+		  // number of waypoints
+		  int waypoints_no = ptsx.size();
+		  
+		  // x,y, orientation and speed of the vehicle
           double px = j[1]["x"];
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+		  
+		  //Display the MPC predicted trajectory 
+          vector<double> mpc_x_vals;
+          vector<double> mpc_y_vals;
+		  
+		  //Display the waypoints/reference line
+          vector<double> next_x_vals(waypoints_no);
+          vector<double> next_y_vals(waypoints_no);
 
+		  
           /*
-          * TODO: Calculate steeering angle and throttle using MPC.
+          * Calculating steeering angle and throttle using MPC.
           *
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
+		 if (latency > 0) {
+			// px and py are corrected by latency
+			// everything, for numerical stability, 
+			// is calculated in the seconds time frame
+            double vs = mph2mps(v);
+            px += vs * cos(psi) * (latency * .001);
+            py += vs * sin(psi) * (latency * .001);
+         }
+		  
+		  Eigen::VectorXd coords_x(waypoints_no);
+		  Eigen::VectorXd coords_y(waypoints_no);
+ 
+		  for(int i = 0; i < waypoints_no; i++) {
+			vector<double> vehicle_pos = map2car(ptsx[i] - px,
+                                                 ptsy[i] - py,
+                                                 psi);
+			
+            coords_x[i] = vehicle_pos[0];
+            coords_y[i] = vehicle_pos[1];
+
+            next_x_vals[i] = vehicle_pos[0];
+			next_y_vals[i] = vehicle_pos[1];
+		  }
+		  
+		  // fit polynomial
+		  int polynomial_order = 3;
+          Eigen::VectorXd coeffs = polyfit(coords_x, coords_y, polynomial_order);
+
+		  Eigen::VectorXd state(6);
+		  state << 0, 0, 0, v, polyeval(coeffs, 0), -atan(coeffs[1]);
+		  
+		  vector<double> solution = mpc.Solve(state, coeffs, mpc_x_vals, mpc_y_vals);
+		  		  
+          double steer_value = solution[0];
+          double throttle_value = solution[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value;
+          msgJson["steering_angle"] = -steer_value / deg2rad(25);
           msgJson["throttle"] = throttle_value;
-
-          //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
@@ -117,9 +177,6 @@ int main() {
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
-          //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
