@@ -36,13 +36,14 @@ size_t a_start = delta_start + N - 1;
 
 double ref_cte = 0;
 double ref_epsi = 0;
-double ref_v = 40;
+double ref_v = 45;
 
 class FG_eval {
  public:
   // Fitted polynomial coefficients
   Eigen::VectorXd coeffs;
-  FG_eval(Eigen::VectorXd coeffs) { this->coeffs = coeffs; }
+  double v;
+  FG_eval(Eigen::VectorXd coeffs, double v) { this->coeffs = coeffs, this->v = v; }
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
@@ -65,16 +66,23 @@ class FG_eval {
 	}
 	
 	// 2. Minimizing the use of actuators.
-	double delta_start_factor = 300.
+	// This progressive penalization minimizes steering at higher speeds
+	// It takes the actual speed and elaborates a penalty multiplier
+	// for steering and sequential steering
+	double delta_start_factor = std::max(double(1), 18.75 * v * v - 1308.9 * v + 23893);
+
+	// This penalization prevents the car from keeping on braking at low speed
+	double delta_a_start = 1.5;
+	
 	for (int i = 0; i < N - 1; i++) {
 		fg[0] += CppAD::pow(vars[delta_start + i], 2) * delta_start_factor;
-		fg[0] += CppAD::pow(vars[a_start + i], 2);
+		fg[0] += CppAD::pow(vars[a_start + i], 2) * delta_a_start;
 	}
 	
 	// 3. Minimizing the value gap between sequential actuations.
 	for (int i = 0; i < N - 2; i++) {
 		fg[0] += CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2) * delta_start_factor;
-		fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2) ;
+		fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2) * delta_a_start;
 	}
 	
 	// Setting up constraints starting from actual state
@@ -218,7 +226,7 @@ vector<double> &mpc_x_vals, vector<double> &mpc_y_vals) {
   constraints_upperbound[epsi_start]  = epsi;
 
   // object that computes objective and constraints
-  FG_eval fg_eval(coeffs);
+  FG_eval fg_eval(coeffs, v);
 
   //
   // NOTE: You don't have to worry about these options
@@ -273,7 +281,7 @@ vector<double> &mpc_x_vals, vector<double> &mpc_y_vals) {
   double steer_value = 0.0;
   double throttle_value = 0.0;
   
-  double look_forward = 3;
+  double look_forward = 5;
   for (int i = 0; i < look_forward; i++) {
 	  steer_value += solution.x[delta_start + i] / look_forward;
 	  throttle_value += solution.x[a_start+1] / look_forward;
