@@ -72,7 +72,7 @@ N is the number of variables optimized by MPC, the more, the more precise the fo
 dt points out the frequency of actuations. Larger values of dt result in less frequent actuations, which makes it harder to accurately approximate a continuous reference trajectory.
 
 ### An empirical solution
-A good practice is to first determine a reasonable range for T and then tune dt and N appropriately, keeping the effect of each in mind. By various experiments I found out that it is better to look adhead of about 0.75 seconds, which can be splitted in N=15 (still a fair computational effort) and dt = 0.05 (5/100 of second) which allows a good steering reaction.
+A good practice is to first determine a reasonable range for T and then tune dt and N appropriately, keeping the effect of each in mind. By various experiments I found out that it is better to look adhead of about 0.75 seconds, which can be splitted in N=15 (still a fair computational effort) and dt = 0.05 (50 milliseconds) which allows a good steering reaction.
 
 ## Waypoints, Vehicle State, Actuators Preprocessing
 
@@ -81,16 +81,17 @@ The only preprocessing done is transforming the waypoints coordinates in respect
 ## Dealing with Latency
 In a real car, an actuation command won't execute instantly - there will be a delay as the command propagates through the system. A realistic delay might be on the order of 100 milliseconds. 
 
-A latency of 100 milliseconds has been implemented in the code of `main.cpp`. Such a small delay causes the first, immediate, prediction made by the solver in the MPC to be already superseeded when actually implemented. In fact, the first prediction is expected to be actual after 100 milliseconds, but, due to the latency, is actuated after 200 milliseconds.
+A latency of 100 milliseconds has been implemented in the code of `main.cpp`. Such a small delay causes the first, immediate, prediction made by the solver in the MPC to be already superseeded when actually implemented. In fact, the first prediction is expected to be actual after 50 milliseconds, but, due to the latency, is actuated after 150 milliseconds.
+
 The suggested action on steering and throttle could then prove unsuitable for the present situation because based on a state situation which is not actual. That could increase the CTE and orientation error, calling for furthermore actions that, as the previous ones cannot be timely, causing more and more errors. In the end, that will make the vehicle oscillating around the intended trajectory causing it to get off-road at higher speeds.
 
 As a solution I combined:
 
-* Using the actual speed and car's position, I try to predict its position after the latency in order to feed into the MPC solver a more likely position to be evaluated. This results in an anticipation of the latency effects
+* Using the actual speed and car's position, I try to predict its position after the latency in order to feed into the MPC solver a more likely position to be evaluated. This results in an anticipation of the latency effects, making the first prediction of the solver as actual for the car's state.
  
-* Since there are N predictions, we can take a few ones, for instance the first three, average them, and return a solution from MPC steering and throttle actuaction values that are incorporating a future state well beyond the 100 milliseconds latency (three predictions contain information on about 300 millisencods)
+* Since there are N predictions, we can take a few ones, for instance the first three, average them, and return a solution for MPC steering and throttle actuaction values which is incorporating a future state well beyond the 100 milliseconds latency (three predictions contain information on about 150 milliseconds with dt=0.05)
 
-Please note that in the current implementation actuator dynamics have not been taken into account (because they have not been measured), but they could be easily dealt with by adding them to the latency.
+Please note that in the current implementation actuator dynamics have not been taken into account (because they have not been measured), but they could be easily dealt with because of the averaging of the first three solver's predictions.
 
 
 ## Dependencies
@@ -116,7 +117,7 @@ Please note that in the current implementation actuator dynamics have not been t
   * Linux
     * You will need a version of Ipopt 3.12.1 or higher. The version available through `apt-get` is 3.11.x. If you can get that version to work great but if not there's a script `install_ipopt.sh` that will install Ipopt. You just need to download the source from the Ipopt [releases page](https://www.coin-or.org/download/source/Ipopt/) or the [Github releases](https://github.com/coin-or/Ipopt/releases) page.
     * This [version](https://www.coin-or.org/download/source/Ipopt/Ipopt-3.12.7.zip) works out of the box,
-    * Then call `install_ipopt.sh` with the source directory as the first argument, ex: `bash install_ipopt.sh Ipopt-3.12.1`.
+    * Then call `install_ipopt.sh` with the source directory as the first argument, ex: `bash install_ipopt.sh Ipopt-3.12.7`.
     * In case errors are reported while loading shared libraries, just run this command before the ipopt.sh: `sudo ldconfig`.
   * Windows: TODO. If you can use the Linux subsystem and follow the Linux instructions.
 * [CppAD](https://www.coin-or.org/CppAD/)

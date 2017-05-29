@@ -128,7 +128,7 @@ int main() {
 		  // in order to anticipate the latency
 		  if (latency > 0) {
 			  double v_m_sec = v * (1609. / 3600.);
-			  double lat_sec = latency * .001
+			  double lat_sec = latency * .001;
 			  px += v_m_sec * cos(psi) * lat_sec;
 			  py += v_m_sec * sin(psi) * lat_sec;
 		  }
