@@ -46,7 +46,7 @@ class FG_eval {
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
-    // TODO: implement MPC
+    // Implementing MPC:
     // fg a vector of constraints, x is a vector of constraints.
     // NOTE: You'll probably go back and forth between this function and
     // the Solver function below.
@@ -54,7 +54,8 @@ class FG_eval {
 	// Setting the cost in the first element of vector fg
 	fg[0] = 0;
 	
-	// Building the cost function
+	// Building the cost function in 3 steps, the single elements are added
+	// and, possible, multiplied by a factor, in order to customize MPC 
 	
 	// 1. The part of the cost based on the reference state.
 	for (int i = 0; i < N; i++) {
@@ -64,39 +65,31 @@ class FG_eval {
 	}
 	
 	// 2. Minimizing the use of actuators.
+	double delta_start_factor = 300.
 	for (int i = 0; i < N - 1; i++) {
-		fg[0] += 200.0 * CppAD::pow(vars[delta_start + i], 2);
+		fg[0] += CppAD::pow(vars[delta_start + i], 2) * delta_start_factor;
 		fg[0] += CppAD::pow(vars[a_start + i], 2);
 	}
 	
 	// 3. Minimizing the value gap between sequential actuations.
 	for (int i = 0; i < N - 2; i++) {
-		fg[0] += CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2) ;
+		fg[0] += CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2) * delta_start_factor;
 		fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2) ;
 	}
 	
-	// Setup Constraints
+	// Setting up constraints starting from actual state
     // We add 1 to each of the starting indices due to cost being located at
-    // index 0 of `fg`.
-    // This bumps up the position of all the other values.
-    fg[1 + x_start]     = vars[x_start];
-    fg[1 + y_start]     = vars[y_start];
-    fg[1 + psi_start]   = vars[psi_start];
-    fg[1 + v_start]     = vars[v_start];
-    fg[1 + cte_start]   = vars[cte_start];
-    fg[1 + epsi_start]  = vars[epsi_start];
+    // index 0 of `fg`. This bumps up the position of all the other values.
+    fg[x_start + 1]     = vars[x_start];
+    fg[y_start + 1]     = vars[y_start];
+    fg[psi_start + 1]   = vars[psi_start];
+    fg[v_start + 1]     = vars[v_start];
+    fg[cte_start + 1]   = vars[cte_start];
+    fg[epsi_start + 1]  = vars[epsi_start];
 
-    // The rest of the constraints
+    // Elaborating the update of the constraints
     for (int i = 0; i < N - 1; i++) {
-		
-      // The state at time t+1 .
-      AD<double> x1 = vars[x_start + i + 1];
-      AD<double> y1 = vars[y_start + i + 1];
-      AD<double> psi1 = vars[psi_start + i + 1];
-      AD<double> v1 = vars[v_start + i + 1];
-      AD<double> cte1 = vars[cte_start + i + 1];
-      AD<double> epsi1 = vars[epsi_start + i + 1];
-
+	
       // The state at time t.
       AD<double> x0 = vars[x_start + i];
       AD<double> y0 = vars[y_start + i];
@@ -105,13 +98,27 @@ class FG_eval {
       AD<double> cte0 = vars[cte_start + i];
       AD<double> epsi0 = vars[epsi_start + i];
 	  
-	  // Only consider the actuation at time t.
+      // The state at time t+1 .
+      AD<double> x1 = vars[x_start + i + 1];
+      AD<double> y1 = vars[y_start + i + 1];
+      AD<double> psi1 = vars[psi_start + i + 1];
+      AD<double> v1 = vars[v_start + i + 1];
+      AD<double> cte1 = vars[cte_start + i + 1];
+      AD<double> epsi1 = vars[epsi_start + i + 1];
+	  
+	  // Only considering the actuation at time t.
 	  AD<double> delta0 = vars[delta_start + i];
 	  AD<double> a0 = vars[a_start + i];
-	  AD<double> f0 = coeffs[0] + coeffs[1]*x0 + coeffs[2]*x0*x0 + coeffs[3]*x0*x0*x0;
-	  AD<double> psides0 = CppAD::atan(coeffs[1] + 2*coeffs[2]*x0 + 3*coeffs[3]*x0*x0*x0);
+	  AD<double> f0 = coeffs[0];
+	  AD<double> psides0 = 0;
+	  for (int j = 1; j < coeffs.size(); j++) {
+			f0 += coeffs[j] * CppAD::pow(x0, j);
+			psides0 +=  coeffs[j] * CppAD::pow(x0, j-1) * j;
+	  }
+	  psides0 = CppAD::atan(psides0);
 	  
-	  // Recalling the update equations are used to compute the state of the car  
+	  // Estimating the difference between observed and updated state variables at t+2	  
+	  // Recalling the update equations used to compute the state of the car  
 	  // at the next time step, based on the state at the current time step:
 	  // x_[t+1] = x[t] + v[t] * cos(psi[t]) * dt
 	  // y_[t+1] = y[t] + v[t] * sin(psi[t]) * dt
@@ -119,12 +126,12 @@ class FG_eval {
 	  // v_[t+1] = v[t] + a[t] * dt
 	  // cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
 	  // epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
-	  fg[2 + x_start + i]    = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
-	  fg[2 + y_start + i]    = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-	  fg[2 + psi_start + i]  = psi1 - (psi0 + v0 * delta0 / Lf * dt);
-	  fg[2 + v_start + i]    = v1 - (v0 + a0 * dt);
-	  fg[2 + cte_start + i]  = cte1 - ((f0 - y0) + v0 * CppAD::sin(epsi0) * dt);
-	  fg[2 + epsi_start + i] = epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+	  fg[x_start + i + 2]    = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
+	  fg[y_start + i + 2]    = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
+	  fg[psi_start + i + 2]  = psi1 - (psi0 + v0 * delta0 / Lf * dt);
+	  fg[v_start + i + 2]    = v1 - (v0 + a0 * dt);
+	  fg[cte_start + i + 2]  = cte1 - ((f0 - y0) + v0 * CppAD::sin(epsi0) * dt);
+	  fg[epsi_start + i + 2] = epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
 	}
   }
 };
@@ -153,8 +160,8 @@ vector<double> &mpc_x_vals, vector<double> &mpc_y_vals) {
   // element vector and there are 10 timesteps. The number of variables is:
   //
   // 4 * 10 + 2 * 9
-  size_t n_vars = 8 * N - 2;
-  // TODO: Set the number of constraints
+  size_t n_vars = (6 * N) + (2 * (N - 1)) ;
+  // Setting the number of constraints
   size_t n_constraints = 6 * N;
 
   // Initial value of the independent variables.

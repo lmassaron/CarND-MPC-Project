@@ -65,14 +65,9 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
-// converts from map coordinate system to car 
-vector<double> map2car(double x, double y, double psi) {
-  return { x * cos(psi) + y * sin(psi), -x * sin(psi) + y * cos(psi) };
-}
-
-// Converts mph into mps (miles per second)
-double mph2mps(double mph_v) {
-  return mph_v * (1609. / 3600.);
+// converts from map to car coordinates system 
+vector<double> car_coords(double x, double y, double psi) {
+  return {x * cos(psi) + y * sin(psi), -x * sin(psi) + y * cos(psi)};
 }
 
 int main() {
@@ -129,22 +124,27 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
+		  // px and py are projected into the future
+		  // in order to anticipate the latency
 		  if (latency > 0) {
-			  // px and py are corrected by latency
-			  // everything, for numerical stability, 
-			  // is calculated in the seconds time frame
-			  double vs = mph2mps(v);
-			  px += vs * cos(psi) * (latency * .001);
-			  py += vs * sin(psi) * (latency * .001);
+			  double v_m_sec = v * (1609. / 3600.);
+			  double lat_sec = latency * .001
+			  px += v_m_sec * cos(psi) * lat_sec;
+			  py += v_m_sec * sin(psi) * lat_sec;
 		  }
-		  
+		  	  
+		  // Waypoints, which are expressed in absolute coordinates,
+		  // are converted into the car's coordinate system
 		  Eigen::VectorXd coords_x(waypoints_no);
 		  Eigen::VectorXd coords_y(waypoints_no);
 		  
 		  for(int i = 0; i < waypoints_no; i++) {
-			  vector<double> vehicle_pos = map2car(ptsx[i] - px, ptsy[i] - py, psi);
+			  vector<double> vehicle_pos = car_coords(ptsx[i] - px, ptsy[i] - py, psi);
 			  coords_x[i] = vehicle_pos[0];
 			  coords_y[i] = vehicle_pos[1];
+			  // This is a good occcasion to update the 
+			  // next_x_vals and next_y_vals for graphical
+			  // projection of the path on the simulator
 			  next_x_vals[i] = vehicle_pos[0];
 			  next_y_vals[i] = vehicle_pos[1];
 		  }
