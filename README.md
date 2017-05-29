@@ -11,7 +11,7 @@ As reflections, after implementing this model for a car running at 40 mph in a r
 * MPC can handle latency very well, incorporating it into its predictions, something that a PID can only answer in a reactive fashion, not an anticipatory one.
 * MPC is computationally intensive depending on the steps in the future you need to look forward and the actuation reactivity. Higher speeds require mtheore computations and that can cause problems if the hardware is not suitable.
 * MPC can control both steering and throttle, no need of anything else (Using PID that would require two PIDs)
-* I used the standard cost function taken from the lectures but the cost function can be easily customized weighting some parts of it more of others, thus making a MPC suitable for specific routes or situation.
+* I used the standard cost function taken from the lectures but the cost function can be easily customized weighting some parts of it more of others, thus making a MPC suitable for specific routes or situation. Thus I found that increasing certain costs helped the car stay on tack even at higher speeds as described below in "An empirical solution" section.
 
 ### State
 The vehicle state is described by the following variables:
@@ -72,7 +72,11 @@ N is the number of variables optimized by MPC, the more, the more precise the fo
 dt points out the frequency of actuations. Larger values of dt result in less frequent actuations, which makes it harder to accurately approximate a continuous reference trajectory.
 
 ### An empirical solution
-A good practice is to first determine a reasonable range for T and then tune dt and N appropriately, keeping the effect of each in mind. By various experiments I found out that it is better to look adhead of about 0.75 seconds, which can be splitted in N=15 (still a fair computational effort) and dt = 0.05 (50 milliseconds) which allows a good steering reaction.
+A good practice is to first determine a reasonable range for T and then tune dt and N appropriately, keeping the effect of each in mind. By various experiments I found out that it is better to look adhead for about 0.75 seconds, which can be splitted in N=15 (still a fair computational effort) and dt = 0.05 (50 milliseconds) which allows a good steering reaction, even at as high speed as 90 mph. After fixing N and dt, I found that I could have the car deal with higher speeds by putting some extra penalties in the cost function:
+
+* a penalty on the steering and steering sequence which is calculated by a polynomial function on the basis of the actual speed of the car. The polynomial formula has been found by figuring out the best value at different speeds (40, 50, 60, 70, 80, 90 mph) and then interpolating the resulting penalties. Using a function, instead of a branching of if/then, helps speeding up computations.
+
+* a penalty in using the brake/throttle which proved very useful in avoiding the car to brake too much at lower speeds.
 
 ## Waypoints, Vehicle State, Actuators Preprocessing
 
