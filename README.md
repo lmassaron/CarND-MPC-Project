@@ -99,7 +99,7 @@ As a solution I combined:
  
 * Since there are N predictions, we can take a few ones, for instance the first five, average them, and return a solution for MPC steering and throttle actuaction values which is incorporating a future state well beyond the 100 milliseconds latency (five predictions, with dt=0.05, contain information on about 250 milliseconds)
 
-Please note that in the current implementation actuator dynamics have not been taken into account (because they have not been measured), but they could be easily dealt with because of the averaging of the first three solver's predictions.
+Please note that in the current implementation actuator dynamics have not been taken into account (because they have not been measured), but they could be easily dealt with because of the averaging of the first five solver's predictions.
 
 
 ## Dependencies
