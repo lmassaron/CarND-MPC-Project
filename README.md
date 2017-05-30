@@ -76,7 +76,7 @@ N is the number of variables optimized by MPC, the more, the more precise the fo
 dt points out the frequency of actuations. Larger values of dt result in less frequent actuations, which makes it harder to accurately approximate a continuous reference trajectory.
 
 ### An empirical solution
-A good practice is to first determine a reasonable range for T and then tune dt and N appropriately, keeping the effect of each in mind. By various experiments I found out that it is better to look adhead for about 0.75 seconds, which can be splitted in N=15 (still a fair computational effort) and dt = 0.05 (50 milliseconds) which allows a good steering reaction, even at as high speed as 90 mph. After fixing N and dt, I found that I could have the car deal with higher speeds by putting some extra penalties in the cost function:
+A good practice is to first determine a reasonable range for T and then tune dt and N appropriately, keeping the effect of each in mind. By various experiments I found out that it is better to look ahead for about 0.75 seconds, which can be splitted in N=15 (still a fair computational effort) and dt = 0.05 (50 milliseconds). Such settings allow a good steering reaction, even at speeds as high as 90 mph (after this speed threshold, the car oscillates too much when steering and it can get off-road). After fixing N and dt, I found that I could have the car deal with higher speeds by putting some extra penalties in the cost function:
 
 * a penalty on the steering and steering sequence which is calculated by a polynomial function on the basis of the actual speed of the car. The polynomial formula has been found by figuring out the best value at different speeds (40, 50, 60, 70, 80, 90 mph) and then interpolating the resulting penalties. Using a function, instead of a branching of if/then, helps speeding up computations.
 
@@ -87,7 +87,7 @@ A good practice is to first determine a reasonable range for T and then tune dt 
 The only preprocessing done is transforming the waypoints coordinates in respect of the car's coordinate system (which is based on the car itself, having the car as the origin).
 
 ## Dealing with Latency
-In a real car, an actuation command won't execute instantly - there will be a delay as the command propagates through the system. A realistic delay might be on the order of 100 milliseconds. 
+In a real car, an actuation command won't execute instantly - there will be a delay as the command propagates through the system. A realistic delay might be in the range of 100 milliseconds. 
 
 A latency of 100 milliseconds has been implemented in the code of `main.cpp`. Such a small delay causes the first, immediate, prediction made by the solver in the MPC to be already superseeded when actually implemented. In fact, the first prediction is expected to be actual after 50 milliseconds, but, due to the latency, is actuated after 150 milliseconds.
 
