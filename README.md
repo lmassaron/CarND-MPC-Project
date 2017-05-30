@@ -24,7 +24,8 @@ The vehicle state is described by the following variables:
 The state is completed by its evaluation expressed by:
 
     * cross track error (cte) which is the distance between the car's position and the lane center
-    * heading error (epsi) which is the radians difference between the tangent of the closest point of the lane center and the car forward direction
+    * heading error (epsi) which is the radians difference between the tangent of the closest 
+	  point of the lane center and the car forward direction
 
 ### Actuators
 The actuators of the vehicle are:
@@ -43,7 +44,9 @@ Setup:
 Loop:
 
     4. We pass the current state as the initial state to the model predictive controller.
-    5. We call the optimization solver. Given the initial state, the solver will return the vector of control inputs that minimizes the cost function. The solver we'll use is called [Ipopt](https://projects.coin-or.org/Ipopt).
+    5. We call the optimization solver. Given the initial state, the solver will return 
+	   the vector of control inputs that minimizes the cost function. The solver we'll 
+	   use is called [Ipopt](https://projects.coin-or.org/Ipopt).
     6. We apply the first control input to the vehicle.
     7. Back to 4.
 
