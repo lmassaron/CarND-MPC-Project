@@ -22,6 +22,7 @@ The vehicle state is described by the following variables:
     * v: speed of the vehicle
 
 The state is completed by its evaluation expressed by:
+
     * cross track error (cte) which is the distance between the car's position and the lane center
     * heading error (epsi) which is the radians difference between the tangent of the closest point of the lane center and the car forward direction
 
