@@ -284,7 +284,7 @@ vector<double> &mpc_x_vals, vector<double> &mpc_y_vals) {
   double look_forward = 5;
   for (int i = 0; i < look_forward; i++) {
 	  steer_value += solution.x[delta_start + i] / look_forward;
-	  throttle_value += solution.x[a_start+1] / look_forward;
+	  throttle_value += solution.x[a_start + i] / look_forward;
   }
   
   return {steer_value, throttle_value};
