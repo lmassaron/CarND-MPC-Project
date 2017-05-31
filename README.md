@@ -1,3 +1,5 @@
+[image1]: ./img/snapshot.JPG "Facing a bend at about 90 mph"
+
 # CarND-Controls-MPC
 Self-Driving Car Engineer Nanodegree Program
 
@@ -14,6 +16,10 @@ As reflections, after implementing this model for a car running at a range of sp
 * I used the standard cost function taken from the lectures but the cost function can be easily customized weighting some parts of it more of others, thus making a MPC suitable for specific routes or situation. Thus I found that increasing certain costs helped the car stay on tack even at higher speeds as described below in "An empirical solution" section.
 
 ## Videos
+
+| Facing a bend at almost 90 mph |
+|--------------------------------|
+|![alt text][image1]             | 
 
 You can see how the model is performing watching these two videos:
 
