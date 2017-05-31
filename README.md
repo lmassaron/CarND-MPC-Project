@@ -18,7 +18,7 @@ As reflections, after implementing this model for a car running at a range of sp
 You can see how the model is performing watching these two videos:
 
 * [CarND MPC Project car running at 45 mph](https://youtu.be/wH81fUpFTgU)
-* [CarND MPC Project car running at 90 mph]()
+* [CarND MPC Project car running at 90 mph](https://youtu.be/h0nwJKrsd1g)
 
 ### State
 The vehicle state is described by the following variables:
