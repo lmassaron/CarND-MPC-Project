@@ -9,20 +9,6 @@ using CppAD::AD;
 size_t N = 15;
 double dt = 0.05;
 
-// This value assumes the model presented in the classroom is used.
-//
-// It was obtained by measuring the radius formed by running the vehicle in the
-// simulator around in a circle with a constant steering angle and velocity on a
-// flat terrain.
-//
-// Lf was tuned until the the radius formed by the simulating the model
-// presented in the classroom matched the previous radius.
-//
-// This is the length from front to CoG that has a similar radius.
-// Lf is the distance between the vehicle's front and its barycenter. 
-// Lf and velocity determinate the turning radius of the vehicle.
-const double Lf = 2.67;
-
 // Defining position of values (based on N) given that
 // all state and actuator variables are chained in a vector 
 size_t x_start = 0;
@@ -43,7 +29,8 @@ class FG_eval {
   // Fitted polynomial coefficients
   Eigen::VectorXd coeffs;
   double v;
-  FG_eval(Eigen::VectorXd coeffs, double v) { this->coeffs = coeffs, this->v = v; }
+  double Lf;
+  FG_eval(Eigen::VectorXd coeffs, double v, double Lf) { this->coeffs = coeffs, this->v = v, this->Lf = Lf;}
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
@@ -69,7 +56,7 @@ class FG_eval {
 	// This progressive penalization minimizes steering at higher speeds
 	// It takes the actual speed and elaborates a penalty multiplier
 	// for steering and sequential steering
-	double delta_start_factor = std::max(double(1), 18.75 * v * v - 1308.9 * v + 23893);
+	double delta_start_factor = std::max(double(1), 18.0 * v * v - 1308.9 * v + 23893);
 
 	// This penalization prevents the car from keeping on braking at low speed
 	double delta_a_start = 1.5;
@@ -81,8 +68,8 @@ class FG_eval {
 	
 	// 3. Minimizing the value gap between sequential actuations.
 	for (int i = 0; i < N - 2; i++) {
-		fg[0] += CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2) * delta_start_factor;
-		fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2) * delta_a_start;
+		fg[0] += CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+		fg[0] += CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
 	}
 	
 	// Setting up constraints starting from actual state
@@ -226,7 +213,7 @@ vector<double> &mpc_x_vals, vector<double> &mpc_y_vals) {
   constraints_upperbound[epsi_start]  = epsi;
 
   // object that computes objective and constraints
-  FG_eval fg_eval(coeffs, v);
+  FG_eval fg_eval(coeffs, v, Lf);
 
   //
   // NOTE: You don't have to worry about these options
@@ -278,14 +265,8 @@ vector<double> &mpc_x_vals, vector<double> &mpc_y_vals) {
     
   // averaging a certan number of predictions in order 
   // to achieve stability when latency is a problem
-  double steer_value = 0.0;
-  double throttle_value = 0.0;
-  
-  double look_forward = 5;
-  for (int i = 0; i < look_forward; i++) {
-	  steer_value += solution.x[delta_start + i] / look_forward;
-	  throttle_value += solution.x[a_start + i] / look_forward;
-  }
+  double steer_value = solution.x[delta_start];
+  double throttle_value = solution.x[a_start];
   
   return {steer_value, throttle_value};
 }

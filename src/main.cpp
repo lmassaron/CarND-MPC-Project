@@ -7,6 +7,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "MPC.h"
+#include "main.h"
 #include "json.hpp"
 
 // for convenience
@@ -76,6 +77,13 @@ int main() {
   // MPC is initialized here!
   MPC mpc;
 
+ // latency to be incorporated in the MPC
+  latency = 100; // Expressed in milliseconds
+ 
+ // memory of previous actions
+  prev_steer_value = 0.0;
+  prev_throttle_value = 0.0;
+
   h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -91,8 +99,6 @@ int main() {
         if (event == "telemetry") {
           		  
 		  // j[1] is the data JSON object
-		  // latency
-		  long long latency = 100; // Expressed in milliseconds
 		  
 		  // waypoints'x position
           vector<double> ptsx = j[1]["ptsx"];
@@ -124,13 +130,18 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-		  // px and py are projected into the future
-		  // in order to anticipate the latency
+		  // px and py are projected into the futuree start
+		  // as well as psi and v
+		  // in order to anticipate what will 
+		  // happen after the latency
+		  // there starts the optimization
 		  if (latency > 0) {
 			  double v_m_sec = v * (1609. / 3600.);
 			  double lat_sec = latency * .001;
 			  px += v_m_sec * cos(psi) * lat_sec;
 			  py += v_m_sec * sin(psi) * lat_sec;
+			  psi += v_m_sec * prev_steer_value / mpc.Lf * lat_sec;
+			  v += prev_throttle_value * lat_sec;
 		  }
 		  	  
 		  // Waypoints, which are expressed in absolute coordinates,
@@ -160,8 +171,11 @@ int main() {
 		  
 		  double steer_value = solution[0];
 		  double throttle_value = solution[1];
+		  prev_steer_value = steer_value;
+		  prev_throttle_value = throttle_value;
 
           json msgJson;
+
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
           msgJson["steering_angle"] = -steer_value / deg2rad(25);
@@ -169,17 +183,13 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
-
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
-
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
-
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;

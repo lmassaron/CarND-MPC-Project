@@ -85,7 +85,7 @@ dt points out the frequency of actuations. Larger values of dt result in less fr
 ### An empirical solution
 A good practice is to first determine a reasonable range for T and then tune dt and N appropriately, keeping the effect of each in mind. By various experiments I found out that it is better to look ahead for about 0.75 seconds, which can be splitted in N=15 (still a fair computational effort) and dt = 0.05 (50 milliseconds). Such settings allow a good steering reaction, even at speeds as high as 90 mph (after this speed threshold, the car oscillates too much when steering and it can get off-road). After fixing N and dt, I found that I could have the car deal with higher speeds by putting some extra penalties in the cost function:
 
-* a penalty on the steering and steering sequence which is calculated by a polynomial function on the basis of the actual speed of the car. The polynomial formula has been found by figuring out the best value at different speeds (40, 50, 60, 70, 80, 90 mph) and then interpolating the resulting penalties. Using a function, instead of a branching of if/then, helps speeding up computations.
+* a penalty on the steering which is calculated by a polynomial function on the basis of the actual speed of the car. The polynomial formula has been found by figuring out the best value at different speeds (40, 50, 60, 70, 80, 90 mph) and then interpolating the resulting penalties. Using a function, instead of a branching of if/then, helps speeding up computations.
 
 * a penalty in using the brake/throttle which proved very useful in avoiding the car to brake too much at lower speeds.
 
@@ -100,13 +100,9 @@ A latency of 100 milliseconds has been implemented in the code of `main.cpp`. Su
 
 The suggested action on steering and throttle could then prove unsuitable for the present situation because based on a state situation which is not actual. That could increase the CTE and orientation error, calling for furthermore actions that, as the previous ones cannot be timely, causing more and more errors. In the end, that will make the vehicle oscillating around the intended trajectory causing it to get off-road at higher speeds.
 
-As a solution I combined:
+As a solution I devised:
 
-* Using the actual speed and car's position, I try to predict its position after the latency in order to feed into the MPC solver a more likely position to be evaluated. This results in an anticipation of the latency effects, making the first prediction of the solver as actual for the car's state.
- 
-* Since there are N predictions, we can take a few ones, for instance the first five, average them, and return a solution for MPC steering and throttle actuaction values which is incorporating a future state well beyond the 100 milliseconds latency (five predictions, with dt=0.05, contain information on about 250 milliseconds)
-
-Please note that in the current implementation actuator dynamics have not been taken into account (because they have not been measured), but they could be easily dealt with because of the averaging of the first five solver's predictions.
+* Using the actual speed and car's position and the previous steering and throttle input, I try to predict the car's position, orientation (psi) and velocity after the latency in order to feed into the MPC solver a more likely state to be evaluated by the solver. This results in an anticipation of the latency effects, making the first prediction of the solver correct even in presence of latency.
 
 
 ## Dependencies
