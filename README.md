@@ -6,12 +6,19 @@ Self-Driving Car Engineer Nanodegree Program
 ## The Model
 Model Predictive Control (MPC) is a controlling method that can anticipate future events and elaborate control actions accordingly, showing more responsivity and stability than a PID controller.
 
-As reflections, after implementing this model for a car running at 40 mph in a round circuit around a lake, I can summarize:
+As reflections, after implementing this model for a car running at a range of speeds from 40 mph to 90 mph in a round circuit around a lake, I can summarize these points:
 
 * MPC can handle latency very well, incorporating it into its predictions, something that a PID can only answer in a reactive fashion, not an anticipatory one.
 * MPC is computationally intensive depending on the steps in the future you need to look forward and the actuation reactivity. Higher speeds require mtheore computations and that can cause problems if the hardware is not suitable.
 * MPC can control both steering and throttle, no need of anything else (Using PID that would require two PIDs)
 * I used the standard cost function taken from the lectures but the cost function can be easily customized weighting some parts of it more of others, thus making a MPC suitable for specific routes or situation. Thus I found that increasing certain costs helped the car stay on tack even at higher speeds as described below in "An empirical solution" section.
+
+## Videos
+
+You can see how the model is performing watching these two videos:
+
+* [CarND MPC Project car running at 45 mph](https://youtu.be/wH81fUpFTgU)
+* [CarND MPC Project car running at 90 mph]()
 
 ### State
 The vehicle state is described by the following variables:
